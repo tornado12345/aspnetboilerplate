@@ -1,7 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using Abp.Application.Features;
 using Abp.Authorization.Users;
@@ -415,7 +414,9 @@ namespace Abp.Authorization.Roles
                     throw new AbpException("There is no role with given id: " + roleId);
                 }
 
-                var staticRoleDefinition = RoleManagementConfig.StaticRoles.FirstOrDefault(r => r.RoleName == role.Name);
+                var staticRoleDefinition = RoleManagementConfig.StaticRoles.FirstOrDefault(r =>
+                    r.RoleName == role.Name && r.Side == role.GetMultiTenancySide());
+
                 if (staticRoleDefinition != null)
                 {
                     foreach (var permission in _permissionManager.GetAllPermissions())
