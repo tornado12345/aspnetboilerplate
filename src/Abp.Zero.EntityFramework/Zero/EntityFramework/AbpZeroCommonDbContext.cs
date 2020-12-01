@@ -8,9 +8,15 @@ using Abp.Authorization.Roles;
 using Abp.Authorization.Users;
 using Abp.Configuration;
 using Abp.EntityFramework;
+using Abp.EntityFramework.Extensions;
+using Abp.EntityHistory;
 using Abp.Localization;
 using Abp.Notifications;
 using Abp.Organizations;
+using System.Threading;
+using System.Threading.Tasks;
+using Abp.DynamicEntityProperties;
+using Abp.Webhooks;
 
 namespace Abp.Zero.EntityFramework
 {
@@ -119,12 +125,63 @@ namespace Abp.Zero.EntityFramework
         public virtual IDbSet<NotificationSubscriptionInfo> NotificationSubscriptions { get; set; }
 
         /// <summary>
+        /// Entity changes.
+        /// </summary>
+        public virtual IDbSet<EntityChange> EntityChanges { get; set; }
+
+        /// <summary>
+        /// Entity change sets.
+        /// </summary>
+        public virtual IDbSet<EntityChangeSet> EntityChangeSets { get; set; }
+
+        /// <summary>
+        /// Entity property changes.
+        /// </summary>
+        public virtual IDbSet<EntityPropertyChange> EntityPropertyChanges { get; set; }
+
+        public IEntityHistoryHelper EntityHistoryHelper { get; set; }
+
+        /// <summary>
+        /// Webhook information
+        /// </summary>
+        public virtual IDbSet<WebhookEvent> WebhookEvents { get; set; }
+
+        /// <summary>
+        /// Web subscriptions
+        /// </summary>
+        public virtual IDbSet<WebhookSubscriptionInfo> WebhookSubscriptions { get; set; }
+
+        /// <summary>
+        /// Webhook work items
+        /// </summary>
+        public virtual IDbSet<WebhookSendAttempt> WebhookSendAttempts { get; set; }
+
+        /// <summary>
+        /// DynamicParameters
+        /// </summary>
+        public virtual IDbSet<DynamicProperty> DynamicProperties { get; set; }
+
+        /// <summary>
+        /// DynamicProperty selectable values
+        /// </summary>
+        public virtual IDbSet<DynamicPropertyValue> DynamicPropertyValues { get; set; }
+
+        /// <summary>
+        /// Entities dynamic parameters. Which parameters that entity has
+        /// </summary>
+        public virtual IDbSet<DynamicEntityProperty> DynamicEntityProperties { get; set; }
+
+        /// <summary>
+        /// Entities dynamic parameter's values
+        /// </summary>
+        public virtual IDbSet<DynamicEntityPropertyValue> DynamicEntityPropertyValues { get; set; }
+
+        /// <summary>
         /// Default constructor.
         /// Do not directly instantiate this class. Instead, use dependency injection!
         /// </summary>
         protected AbpZeroCommonDbContext()
         {
-
         }
 
         /// <summary>
@@ -134,13 +191,11 @@ namespace Abp.Zero.EntityFramework
         protected AbpZeroCommonDbContext(string nameOrConnectionString)
             : base(nameOrConnectionString)
         {
-
         }
 
         protected AbpZeroCommonDbContext(DbCompiledModel model)
             : base(model)
         {
-
         }
 
         /// <summary>
@@ -149,13 +204,11 @@ namespace Abp.Zero.EntityFramework
         protected AbpZeroCommonDbContext(DbConnection existingConnection, bool contextOwnsConnection)
             : base(existingConnection, contextOwnsConnection)
         {
-
         }
 
         protected AbpZeroCommonDbContext(string nameOrConnectionString, DbCompiledModel model)
             : base(nameOrConnectionString, model)
         {
-
         }
 
         protected AbpZeroCommonDbContext(ObjectContext objectContext, bool dbContextOwnsObjectContext)
@@ -169,6 +222,126 @@ namespace Abp.Zero.EntityFramework
         protected AbpZeroCommonDbContext(DbConnection existingConnection, DbCompiledModel model, bool contextOwnsConnection)
             : base(existingConnection, model, contextOwnsConnection)
         {
+        }
+
+        public override int SaveChanges()
+        {
+            var changeSet = EntityHistoryHelper?.CreateEntityChangeSet(this);
+
+            var result = base.SaveChanges();
+
+            EntityHistoryHelper?.Save(this, changeSet);
+
+            return result;
+        }
+
+        public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default(CancellationToken))
+        {
+            var changeSet = EntityHistoryHelper?.CreateEntityChangeSet(this);
+
+            var result = await base.SaveChangesAsync(cancellationToken);
+
+            if (EntityHistoryHelper != null)
+            {
+                await EntityHistoryHelper.SaveAsync(this, changeSet);
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        ///
+        /// </summary>
+        /// <param name="modelBuilder"></param>
+        protected override void OnModelCreating(DbModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
+
+            modelBuilder.Entity<EntityChange>()
+                .HasMany(e => e.PropertyChanges)
+                .WithRequired()
+                .HasForeignKey(e => e.EntityChangeId);
+
+            #region EntityChange.IX_EntityChangeSetId
+
+            modelBuilder.Entity<EntityChange>()
+                .Property(e => e.EntityChangeSetId)
+                .CreateIndex("IX_EntityChangeSetId", 1);
+
+            #endregion
+
+            #region EntityChange.IX_EntityTypeFullName_EntityId
+
+            modelBuilder.Entity<EntityChange>()
+                .Property(e => e.EntityTypeFullName)
+                .CreateIndex("IX_EntityTypeFullName_EntityId", 1);
+
+            modelBuilder.Entity<EntityChange>()
+                .Property(e => e.EntityId)
+                .CreateIndex("IX_EntityTypeFullName_EntityId", 2);
+
+            #endregion
+
+            modelBuilder.Entity<EntityChangeSet>()
+                .HasMany(e => e.EntityChanges)
+                .WithRequired()
+                .HasForeignKey(e => e.EntityChangeSetId);
+
+            #region EntityChangeSet.IX_TenantId_UserId
+
+            modelBuilder.Entity<EntityChangeSet>()
+                .Property(e => e.TenantId)
+                .CreateIndex("IX_TenantId_UserId", 1);
+
+            modelBuilder.Entity<EntityChangeSet>()
+                .Property(e => e.UserId)
+                .CreateIndex("IX_TenantId_UserId", 2);
+
+            #endregion
+
+            #region EntityChangeSet.IX_TenantId_CreationTime
+
+            modelBuilder.Entity<EntityChangeSet>()
+                .Property(e => e.TenantId)
+                .CreateIndex("IX_TenantId_CreationTime", 1);
+
+            modelBuilder.Entity<EntityChangeSet>()
+                .Property(e => e.CreationTime)
+                .CreateIndex("IX_TenantId_CreationTime", 2);
+
+            #endregion
+
+            #region EntityChangeSet.IX_TenantId_Reason
+
+            modelBuilder.Entity<EntityChangeSet>()
+                .Property(e => e.TenantId)
+                .CreateIndex("IX_TenantId_Reason", 1);
+
+            modelBuilder.Entity<EntityChangeSet>()
+                .Property(e => e.Reason)
+                .CreateIndex("IX_TenantId_Reason", 2);
+
+            #endregion
+
+            #region EntityPropertyChange.IX_EntityChangeId
+
+            modelBuilder.Entity<EntityPropertyChange>()
+                .Property(e => e.EntityChangeId)
+                .CreateIndex("IX_EntityChangeId", 1);
+
+            #endregion
+
+            modelBuilder.Entity<Setting>()
+                .HasIndex(e => new {e.TenantId, e.Name, e.UserId})
+                .IsUnique();
+
+            modelBuilder.Entity<DynamicProperty>()
+                .HasIndex(e => new {e.PropertyName, e.TenantId})
+                .IsUnique();
+
+            modelBuilder.Entity<DynamicEntityProperty>()
+                .HasIndex(e => new {e.EntityFullName, e.DynamicPropertyId, e.TenantId})
+                .IsUnique();
         }
     }
 }

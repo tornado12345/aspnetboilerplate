@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Threading.Tasks;
 using Abp.Dependency;
 using Abp.Domain.Repositories;
@@ -20,7 +22,7 @@ namespace Abp.Localization
         /// Initializes a new instance of the <see cref="ApplicationLanguageTextManager"/> class.
         /// </summary>
         public ApplicationLanguageTextManager(
-            ILocalizationManager localizationManager, 
+            ILocalizationManager localizationManager,
             IRepository<ApplicationLanguageText, long> applicationTextRepository,
             IUnitOfWorkManager unitOfWorkManager)
         {
@@ -51,6 +53,20 @@ namespace Abp.Localization
                 .GetStringOrNull(tenantId, key, culture, tryDefaults);
         }
 
+        public List<string> GetStringsOrNull(int? tenantId, string sourceName, CultureInfo culture, List<string> keys, bool tryDefaults = true)
+        {
+            var source = _localizationManager.GetSource(sourceName);
+
+            if (!(source is IMultiTenantLocalizationSource))
+            {
+                return source.GetStringsOrNull(keys, culture, tryDefaults);
+            }
+
+            return source
+                .As<IMultiTenantLocalizationSource>()
+                .GetStringsOrNull(tenantId, keys, culture, tryDefaults);
+        }
+
         /// <summary>
         /// Updates a localized string value.
         /// </summary>
@@ -64,11 +80,11 @@ namespace Abp.Localization
         {
             using (_unitOfWorkManager.Current.SetTenantId(tenantId))
             {
-                var existingEntity = await _applicationTextRepository.FirstOrDefaultAsync(t =>
+                var existingEntity = (await _applicationTextRepository.GetAllListAsync(t =>
                     t.Source == sourceName &&
                     t.LanguageName == culture.Name &&
-                    t.Key == key
-                    );
+                    t.Key == key))
+                    .FirstOrDefault(t => t.Key == key);
 
                 if (existingEntity != null)
                 {

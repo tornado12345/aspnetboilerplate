@@ -17,7 +17,15 @@ namespace Abp.Tests.Notifications
         {
             _store = Substitute.For<INotificationStore>();
             _backgroundJobManager = Substitute.For<IBackgroundJobManager>();
-            _publisher = new NotificationPublisher(_store, _backgroundJobManager, Substitute.For<INotificationConfiguration>(), SequentialGuidGenerator.Instance, LocalIocManager);
+            _publisher = new NotificationPublisher(
+                _store,
+                _backgroundJobManager,
+                Substitute.For<INotificationDistributer>(),
+                Substitute.For<INotificationConfiguration>(),
+                SequentialGuidGenerator.Instance,
+                LocalIocManager
+            );
+            
             _publisher.UnitOfWorkManager = Substitute.For<IUnitOfWorkManager>();
             _publisher.UnitOfWorkManager.Current.Returns(Substitute.For<IActiveUnitOfWork>());
         }
@@ -45,6 +53,32 @@ namespace Abp.Tests.Notifications
             await _backgroundJobManager.Received()
                 .EnqueueAsync<NotificationDistributionJob, NotificationDistributionJobArgs>(
                     Arg.Any<NotificationDistributionJobArgs>()
+                );
+        }
+
+        [Fact]
+        public async Task Should_PublishAsync_To_Host()
+        {
+            // Act
+            await _publisher.PublishAsync("TestNotification", tenantIds: new int?[] { null });
+
+            // Assert
+            await _store.Received()
+                .InsertNotificationAsync(
+                    Arg.Is<NotificationInfo>(n => n.TenantIds == "null")
+                );
+        }
+
+        [Fact]
+        public void Should_Publish_To_Host()
+        {
+            // Act
+            _publisher.Publish("TestNotification", tenantIds: new int?[] { null });
+
+            // Assert
+            _store.Received()
+                .InsertNotification(
+                    Arg.Is<NotificationInfo>(n => n.TenantIds == "null")
                 );
         }
 

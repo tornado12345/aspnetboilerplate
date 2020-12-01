@@ -9,7 +9,7 @@ package.
 
 If you have an existing project and are considering migrating to ASP.NET
 Core, you can read our [blog
-post](http://volosoft.com/migrating-from-asp-net-mvc-5x-to-asp-net-core/)
+post](https://medium.com/volosoft/migrating-from-asp-net-mvc-5-x-to-asp-net-core-520c9aa65e2c)
 about our experience on migrating.
 
 ### Startup Template
@@ -117,6 +117,13 @@ added to the service classes, even if you have interfaces.
 
 **Note**: To use Mvc datetime format options, you can set this property `Configuration.Modules.AbpAspNetCore().UseMvcDateTimeFormatForAppServices`. Its default value is `false`. 
 
+Abp provides a convenient way for you to configure the default Cache-Control header for all **ApplicationService** and **Controller** via **IAbpAspNetCoreConfiguration**
+- **DefaultResponseCacheAttributeForAppServices**: Used if **Controller** class does not define **Microsoft.AspNetCore.Mvc.ResponseCacheAttribute**
+- **DefaultResponseCacheAttributeForControllers**: Used if **ApplicationService** class does not define **Microsoft.AspNetCore.Mvc.ResponseCacheAttribute**
+
+**Note**: Cache-Control is not configured by default. You may configure for all **ApplicationService** and **Controller** then
+use **Microsoft.AspNetCore.Mvc.ResponseCacheAttribute** at method/action level to override it.
+
 ### Filters
 
 ABP defines some **pre-built filters** for ASP.NET Core. All of them are
@@ -193,17 +200,6 @@ successfully executed.
     methods and classes to enable/disable wrapping.
 -   You can use a startup configuration to change the default behavior for
     result wrapping.
-
-##### Result Caching For Ajax Requests
-
-AbpResultFilter adds a **Cache-Control** header (no-cache, no-store...) to
-the response of AJAX Requests. Thus, it prevents browser caching of
-AJAX responses even for GET requests. This behavior can be disabled by
-configuration or attributes. You can use the  **NoClientCache** attribute
-to prevent caching (default) or **AllowClientCache** attrbiute to allow the
-browser to cache results. Alternatively, you can implement
-IClientCacheAttribute to create a custom attribute for finer
-control.
 
 ### Model Binders
 

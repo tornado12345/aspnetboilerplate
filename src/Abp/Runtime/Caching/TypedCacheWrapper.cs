@@ -1,3 +1,4 @@
+using Abp.Data;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -22,7 +23,7 @@ namespace Abp.Runtime.Caching
             get { return InternalCache.DefaultSlidingExpireTime; }
             set { InternalCache.DefaultSlidingExpireTime = value; }
         }
-        public TimeSpan? DefaultAbsoluteExpireTime
+        public DateTimeOffset? DefaultAbsoluteExpireTime
         {
             get { return InternalCache.DefaultAbsoluteExpireTime; }
             set { InternalCache.DefaultAbsoluteExpireTime = value; }
@@ -56,61 +57,104 @@ namespace Abp.Runtime.Caching
 
         public TValue Get(TKey key, Func<TKey, TValue> factory)
         {
-            return InternalCache.Get(key, factory);
+            return (TValue)InternalCache.Get(key.ToString(), (k) => factory(key));
         }
 
         public TValue[] Get(TKey[] keys, Func<TKey, TValue> factory)
         {
-            return InternalCache.Get(keys, factory);
+            var keysAsString = keys.Select((key) => key.ToString()).ToArray();
+            var values = InternalCache.Get(keysAsString, (k) => factory((TKey)(k as object)));
+            return values.Select(value => (TValue)value).ToArray();
         }
 
-        public Task<TValue> GetAsync(TKey key, Func<TKey, Task<TValue>> factory)
+        public async Task<TValue> GetAsync(TKey key, Func<TKey, Task<TValue>> factory)
         {
-            return InternalCache.GetAsync(key, factory);
+            return (TValue)await InternalCache.GetAsync(key.ToString(), async (k) => await factory(key));
         }
 
-        public Task<TValue[]> GetAsync(TKey[] keys, Func<TKey, Task<TValue>> factory)
+        public async Task<TValue[]> GetAsync(TKey[] keys, Func<TKey, Task<TValue>> factory)
         {
-            return InternalCache.GetAsync(keys, factory);
+            var keysAsString = keys.Select((key) => key.ToString()).ToArray();
+            var values = await InternalCache.GetAsync(keysAsString, async (k) => await factory((TKey)(k as object)));
+            return values.Select(value => (TValue)value).ToArray();
+        }
+
+        public bool TryGetValue(TKey key, out TValue value)
+        {
+            var found = InternalCache.TryGetValue(key.ToString(), out object objectValue);
+            value = CastOrDefault(objectValue);
+            return found;
+        }
+
+        public async Task<ConditionalValue<TValue>> TryGetValueAsync(TKey key)
+        {
+            var result = await InternalCache.TryGetValueAsync(key.ToString());
+            return CreateConditionalValue(result);
+        }
+
+        public ConditionalValue<TValue>[] TryGetValues(TKey[] keys)
+        {
+            var results = InternalCache.TryGetValues(keys.Select(key => key.ToString()).ToArray());
+            return results.Select(CreateConditionalValue).ToArray();
+        }
+
+        public async Task<ConditionalValue<TValue>[]> TryGetValuesAsync(TKey[] keys)
+        {
+            var results = await InternalCache.TryGetValuesAsync(keys.Select(key => key.ToString()).ToArray());
+            return results.Select(CreateConditionalValue).ToArray();
+        }
+
+        protected ConditionalValue<TValue> CreateConditionalValue(ConditionalValue<object> conditionalValue)
+        {
+            return new ConditionalValue<TValue>(conditionalValue.HasValue, CastOrDefault(conditionalValue.Value));
         }
 
         public TValue GetOrDefault(TKey key)
         {
-            return InternalCache.GetOrDefault<TKey, TValue>(key);
+            return CastOrDefault(InternalCache.GetOrDefault(key.ToString()));
         }
 
         public TValue[] GetOrDefault(TKey[] keys)
         {
-            return InternalCache.GetOrDefault<TKey, TValue>(keys);
+            var keysAsString = keys.Select((key) => key.ToString()).ToArray();
+            var values = InternalCache.GetOrDefault(keysAsString);
+            return values.Select(CastOrDefault).ToArray();
         }
 
-        public Task<TValue> GetOrDefaultAsync(TKey key)
+        public async Task<TValue> GetOrDefaultAsync(TKey key)
         {
-            return InternalCache.GetOrDefaultAsync<TKey, TValue>(key);
+            return CastOrDefault(await InternalCache.GetOrDefaultAsync(key.ToString()));
         }
 
-        public Task<TValue[]> GetOrDefaultAsync(TKey[] keys)
+        public async Task<TValue[]> GetOrDefaultAsync(TKey[] keys)
         {
-            return InternalCache.GetOrDefaultAsync<TKey, TValue>(keys);
+            var keysAsString = keys.Select((key) => key.ToString()).ToArray();
+            var values = await InternalCache.GetOrDefaultAsync(keysAsString);
+            return values.Select(CastOrDefault).ToArray();
         }
 
-        public void Set(TKey key, TValue value, TimeSpan? slidingExpireTime = null, TimeSpan? absoluteExpireTime = null)
+        private TValue CastOrDefault(object value)
+        {
+            return value == null ? default : (TValue)value;
+        }
+
+        public void Set(TKey key, TValue value, TimeSpan? slidingExpireTime = null, DateTimeOffset? absoluteExpireTime = null)
         {
             InternalCache.Set(key.ToString(), value, slidingExpireTime, absoluteExpireTime);
         }
 
-        public void Set(KeyValuePair<TKey, TValue>[] pairs, TimeSpan? slidingExpireTime = null, TimeSpan? absoluteExpireTime = null)
+        public void Set(KeyValuePair<TKey, TValue>[] pairs, TimeSpan? slidingExpireTime = null, DateTimeOffset? absoluteExpireTime = null)
         {
             var stringPairs = pairs.Select(p => new KeyValuePair<string, object>(p.Key.ToString(), p.Value));
             InternalCache.Set(stringPairs.ToArray(), slidingExpireTime, absoluteExpireTime);
         }
 
-        public Task SetAsync(TKey key, TValue value, TimeSpan? slidingExpireTime = null, TimeSpan? absoluteExpireTime = null)
+        public Task SetAsync(TKey key, TValue value, TimeSpan? slidingExpireTime = null, DateTimeOffset? absoluteExpireTime = null)
         {
             return InternalCache.SetAsync(key.ToString(), value, slidingExpireTime, absoluteExpireTime);
         }
 
-        public Task SetAsync(KeyValuePair<TKey, TValue>[] pairs, TimeSpan? slidingExpireTime = null, TimeSpan? absoluteExpireTime = null)
+        public Task SetAsync(KeyValuePair<TKey, TValue>[] pairs, TimeSpan? slidingExpireTime = null, DateTimeOffset? absoluteExpireTime = null)
         {
             var stringPairs = pairs.Select(p => new KeyValuePair<string, object>(p.Key.ToString(), p.Value));
             return InternalCache.SetAsync(stringPairs.ToArray(), slidingExpireTime, absoluteExpireTime);

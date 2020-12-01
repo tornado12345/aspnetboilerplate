@@ -39,10 +39,8 @@ $projects = (
     "Abp.Web.SignalR",
     "Abp.Web.Resources",
     "Abp.Zero",
-    "Abp.Zero.AspNetCore",
     "Abp.Zero.Common",
     "Abp.Zero.EntityFramework",
-    "Abp.Zero.EntityFrameworkCore",
     "Abp.Zero.Ldap",
     "Abp.Zero.NHibernate",
     "Abp.Zero.Owin",
@@ -50,7 +48,9 @@ $projects = (
     "Abp.ZeroCore.EntityFramework",
     "Abp.ZeroCore.EntityFrameworkCore",
     "Abp.ZeroCore.IdentityServer4",
-    "Abp.ZeroCore.IdentityServer4.EntityFrameworkCore"    
+    "Abp.ZeroCore.IdentityServer4.EntityFrameworkCore",
+    "Abp.ZeroCore.IdentityServer4.vNext",
+    "Abp.ZeroCore.IdentityServer4.vNext.EntityFrameworkCore"
 )
 
 # Rebuild solution
@@ -64,14 +64,17 @@ foreach($project in $projects) {
 
     # Create nuget pack
     Set-Location $projectFolder
-    Remove-Item -Recurse (Join-Path $projectFolder "bin/Release")
-    & dotnet msbuild /p:Configuration=Release /p:SourceLinkCreate=true
-    & dotnet msbuild /t:pack /p:Configuration=Release /p:SourceLinkCreate=true
+    Get-ChildItem (Join-Path $projectFolder "bin/Release") -ErrorAction SilentlyContinue | Remove-Item -Recurse
+    & dotnet msbuild /p:Configuration=Release
+    & dotnet msbuild /p:Configuration=Release /t:pack /p:IncludeSymbols=true /p:SymbolPackageFormat=snupkg
 
     # Copy nuget package
     $projectPackPath = Join-Path $projectFolder ("/bin/Release/" + $project + ".*.nupkg")
     Move-Item $projectPackPath $packFolder
 
+	# Copy symbol package
+    $projectPackPath = Join-Path $projectFolder ("/bin/Release/" + $project + ".*.snupkg")
+    Move-Item $projectPackPath $packFolder
 }
 
 # Go back to the pack folder

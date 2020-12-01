@@ -10,6 +10,13 @@ namespace Abp.Zero.Notifications
 
         public async Task DistributeAsync(Guid notificationId)
         {
+            await Task.CompletedTask;
+
+            IsDistributeCalled = true;
+        }
+
+        public void Distribute(Guid notificationId)
+        {
             IsDistributeCalled = true;
         }
     }

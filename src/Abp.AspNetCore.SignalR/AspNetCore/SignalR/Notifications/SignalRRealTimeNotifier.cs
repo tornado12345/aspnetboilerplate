@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using Abp.AspNetCore.SignalR.Hubs;
 using Abp.Dependency;
@@ -36,7 +36,7 @@ namespace Abp.AspNetCore.SignalR.Notifications
         }
 
         /// <inheritdoc/>
-        public Task SendNotificationsAsync(UserNotification[] userNotifications)
+        public async Task SendNotificationsAsync(UserNotification[] userNotifications)
         {
             foreach (var userNotification in userNotifications)
             {
@@ -52,7 +52,8 @@ namespace Abp.AspNetCore.SignalR.Notifications
                             continue;
                         }
 
-                        signalRClient.SendAsync("getNotification", userNotification);
+                        userNotification.Notification.EntityType = null; // Serialization of System.Type causes SignalR to disconnect. See https://github.com/aspnetboilerplate/aspnetboilerplate/issues/5230
+                        await signalRClient.SendAsync("getNotification", userNotification);
                     }
                 }
                 catch (Exception ex)
@@ -61,8 +62,36 @@ namespace Abp.AspNetCore.SignalR.Notifications
                     Logger.Warn(ex.ToString(), ex);
                 }
             }
+        }
 
-            return Task.FromResult(0);
+        /// <inheritdoc/>
+        public void SendNotifications(UserNotification[] userNotifications)
+        {
+            foreach (var userNotification in userNotifications)
+            {
+                try
+                {
+                    var onlineClients = _onlineClientManager.GetAllByUserId(userNotification);
+                    foreach (var onlineClient in onlineClients)
+                    {
+                        var signalRClient = _hubContext.Clients.Client(onlineClient.ConnectionId);
+                        if (signalRClient == null)
+                        {
+                            Logger.Debug("Can not get user " + userNotification.ToUserIdentifier() + " with connectionId " + onlineClient.ConnectionId + " from SignalR hub!");
+                            continue;
+                        }
+
+                        userNotification.Notification.EntityType = null; // Serialization of System.Type causes SignalR to disconnect. See https://github.com/aspnetboilerplate/aspnetboilerplate/issues/5230
+                        //signalRClient.SendAsync("getNotification", userNotification);
+                        Threading.AsyncHelper.RunSync(() => signalRClient.SendAsync("getNotification", userNotification));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warn("Could not send notification to user: " + userNotification.ToUserIdentifier());
+                    Logger.Warn(ex.ToString(), ex);
+                }
+            }
         }
     }
 }
